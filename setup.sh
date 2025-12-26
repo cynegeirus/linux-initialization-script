@@ -41,7 +41,7 @@ sudo systemctl enable --now docker
 # Install Docker Compose
 # -----------------------------
 echo "[+] Installing Docker Compose..."
-VERSION=$(curl --silent https://api.github.com/repos/docker/compose/releases/latest | jq -r .name)
+VERSION=$(curl --silent https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)
 sudo curl -L "https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o $DOCKER_COMPOSE_DEST
 sudo chmod 755 $DOCKER_COMPOSE_DEST
 
