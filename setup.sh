@@ -165,7 +165,6 @@ systemctl disable --now apparmor 2>/dev/null || true
 systemctl disable --now bluetooth 2>/dev/null || true
 systemctl disable --now avahi-daemon 2>/dev/null || true
 
-<<<<<<< HEAD
 echo -e "${BLUE}[11/12] Disabling all system logging...${NC}"
 systemctl stop systemd-journald 2>/dev/null || true
 systemctl disable systemd-journald 2>/dev/null || true
@@ -201,19 +200,6 @@ apt-get autoremove --purge -y 2>/dev/null || true
 apt-get autoclean -y 2>/dev/null || true
 apt-get clean -y 2>/dev/null || true
 
-=======
-echo -e "${BLUE}[11/12] Stopping logging...${NC}"
-systemctl stop systemd-journald || true
-systemctl disable systemd-journald || true
-sed -i 's/^#*Storage=.*/Storage=none/' /etc/systemd/journald.conf
-sed -i 's/^#*ForwardToSyslog=.*/ForwardToSyslog=no/' /etc/systemd/journald.conf
-sed -i 's/^#*ForwardToKMsg=.*/ForwardToKMsg=no/' /etc/systemd/journald.conf
-sed -i 's/^#*ForwardToConsole=.*/ForwardToConsole=no/' /etc/systemd/journald.conf
-rm -rf /var/log/journal
-
-echo -e "${BLUE}[12/12] Auto-Remove packages...${NC}"
-apt autoremove --purge -y 2>/dev/null || true
->>>>>>> 0f9d7932292e7adad3ae4775086753f14995bf09
 
 echo -e "${GREEN}============================================================${NC}"
 echo -e "${GREEN}     CHAMPION EDITION INSTALLATION COMPLETED SUCCESSFULLY ${NC}"
