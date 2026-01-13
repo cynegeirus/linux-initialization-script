@@ -32,7 +32,7 @@ apt update && apt full-upgrade -y
 
 echo -e "${BLUE}[2/10] Installing base packages...${NC}"
 DEBIAN_FRONTEND=noninteractive TZ=$TIMEZONE apt-get install -y tzdata
-apt-get install -y vim nano wget net-tools locales bzip2 wmctrl software-properties-common jq curl apt-transport-https ca-certificates ufw fail2ban ethtool cpufrequtils iproute2 htop iotop iftop conntrack build-essential docker.io linux-image-lowlatency linux-headers-lowlatency
+apt-get install -y vim nano wget net-tools locales bzip2 wmctrl software-properties-common jq curl apt-transport-https ca-certificates ufw fail2ban ethtool cpufrequtils iproute2 htop iotop iftop conntrack build-essential docker.io linux-lowlatency
 
 locale-gen $LOCALE
 systemctl enable --now docker
