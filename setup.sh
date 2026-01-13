@@ -27,17 +27,17 @@ echo -e "${GREEN}        CHAMPION EDITION - CLEAN PERFORMANCE SETUP         ${NC
 echo -e "${GREEN}============================================================${NC}"
 sleep 2
 
-echo -e "${BLUE}[1/10] Updating system...${NC}"
+echo -e "${BLUE}[1/12] Updating system...${NC}"
 apt update && apt full-upgrade -y
 
-echo -e "${BLUE}[2/10] Installing base packages...${NC}"
+echo -e "${BLUE}[2/12] Installing base packages...${NC}"
 DEBIAN_FRONTEND=noninteractive TZ=$TIMEZONE apt-get install -y tzdata
 apt-get install -y vim nano wget net-tools locales bzip2 wmctrl software-properties-common jq curl apt-transport-https ca-certificates ufw fail2ban ethtool cpufrequtils iproute2 htop iotop iftop conntrack build-essential docker.io linux-lowlatency
 
 locale-gen $LOCALE
 systemctl enable --now docker
 
-echo -e "${BLUE}[3/10] Removing systemd-resolved and fixing DNS...${NC}"
+echo -e "${BLUE}[3/12] Removing systemd-resolved and fixing DNS...${NC}"
 systemctl stop systemd-resolved 2>/dev/null || true
 systemctl disable systemd-resolved 2>/dev/null || true
 apt-get purge -y systemd-resolved 2>/dev/null || true
@@ -52,12 +52,12 @@ rm -f /etc/resolv.conf
 echo -e "nameserver $DNS1\nnameserver $DNS2" > /etc/resolv.conf
 chattr +i /etc/resolv.conf
 
-echo -e "${BLUE}[4/10] Installing Docker Compose...${NC}"
+echo -e "${BLUE}[4/12] Installing Docker Compose...${NC}"
 VERSION=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)
 curl -L "https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o $DOCKER_COMPOSE_DEST
 chmod 755 $DOCKER_COMPOSE_DEST
 
-echo -e "${BLUE}[5/10] Configuring system limits...${NC}"
+echo -e "${BLUE}[5/12] Configuring system limits...${NC}"
 cat > $ULIMIT_CONFIG <<EOF
 root soft nofile 100000000
 root hard nofile 100000000
@@ -68,7 +68,7 @@ mkdir -p /etc/systemd/system.conf.d
 echo -e "[Manager]\nDefaultLimitNOFILE=100000000\nDefaultLimitNPROC=infinity" > /etc/systemd/system.conf.d/limits.conf
 systemctl daemon-reexec
 
-echo -e "${BLUE}[6/10] Applying kernel and network tuning...${NC}"
+echo -e "${BLUE}[6/12] Applying kernel and network tuning...${NC}"
 cat > $SYSCTL_CUSTOM_FILE <<EOF
 kernel.pid_max = 4194304
 fs.file-max = 100000000
@@ -99,7 +99,7 @@ net.ipv6.conf.default.disable_ipv6 = 1
 EOF
 sysctl --system
 
-echo -e "${BLUE}[7/10] Configuring CPU and boot parameters...${NC}"
+echo -e "${BLUE}[7/12] Configuring CPU and boot parameters...${NC}"
 if [ -f /etc/default/grub ]; then
   cp /etc/default/grub /etc/default/grub.bak
   EXTRA_ARGS="audit=0 mitigations=off nohz=on skew_tick=1 idle=poll apparmor=0"
@@ -115,7 +115,7 @@ mkdir -p /etc/systemd/system/systemd-networkd-wait-online.service.d
 echo -e "[Service]\nExecStart=\nExecStart=/lib/systemd/systemd-networkd-wait-online --timeout=5" > /etc/systemd/system/systemd-networkd-wait-online.service.d/override.conf
 systemctl daemon-reload
 
-echo -e "${BLUE}[8/10] NIC tuning and RPS setup...${NC}"
+echo -e "${BLUE}[8/12] NIC tuning and RPS setup...${NC}"
 systemctl disable --now irqbalance 2>/dev/null || true
 IFACE=$(ip -o -4 route show to default 2>/dev/null | awk '{print $5}' | head -n1)
 
@@ -141,7 +141,7 @@ if [ -n "$IFACE" ]; then
   fi
 fi
 
-echo -e "${BLUE}[9/10] Configuring Fail2Ban...${NC}"
+echo -e "${BLUE}[9/12] Configuring Fail2Ban...${NC}"
 cat > $JAIL_FILE <<EOF
 [sshd]
 enabled = true
@@ -155,8 +155,7 @@ ignoreip = 127.0.0.1/8
 EOF
 systemctl enable --now fail2ban
 
-echo -e "${BLUE}[10/10] Cleaning unnecessary services...${NC}"
-
+echo -e "${BLUE}[10/12] Cleaning unnecessary services...${NC}"
 systemctl stop snapd 2>/dev/null || true
 systemctl disable snapd 2>/dev/null || true
 apt-get purge -y snapd 2>/dev/null || true
@@ -165,6 +164,42 @@ rm -rf /snap /var/cache/snapd
 systemctl disable --now apparmor 2>/dev/null || true
 systemctl disable --now bluetooth 2>/dev/null || true
 systemctl disable --now avahi-daemon 2>/dev/null || true
+
+echo -e "${BLUE}[11/12] Disabling all system logging...${NC}"
+systemctl stop systemd-journald 2>/dev/null || true
+systemctl disable systemd-journald 2>/dev/null || true
+if [ -f /etc/systemd/journald.conf ]; then
+  sed -i 's/^#*Storage=.*/Storage=none/' /etc/systemd/journald.conf
+  sed -i 's/^#*ForwardToSyslog=.*/ForwardToSyslog=no/' /etc/systemd/journald.conf
+  sed -i 's/^#*ForwardToKMsg=.*/ForwardToKMsg=no/' /etc/systemd/journald.conf
+  sed -i 's/^#*ForwardToConsole=.*/ForwardToConsole=no/' /etc/systemd/journald.conf
+fi
+systemctl stop rsyslog 2>/dev/null || true
+systemctl disable rsyslog 2>/dev/null || true
+apt-get purge -y rsyslog 2>/dev/null || true
+rm -rf /var/log/journal 2>/dev/null || true
+rm -rf /var/log/syslog /var/log/messages /var/log/kern.log 2>/dev/null || true
+dmesg -D 2>/dev/null || true
+sysctl -w kernel.printk="0 0 0 0" 2>/dev/null || true
+echo "kernel.printk = 0 0 0 0" > /etc/sysctl.d/99-no-kernel-logs.conf
+mkdir -p /etc/systemd/system.conf.d
+cat > /etc/systemd/system.conf.d/no-logs.conf <<EOF
+[Manager]
+DefaultStandardOutput=null
+DefaultStandardError=null
+EOF
+systemctl daemon-reexec
+rm -rf /var/log/* 2>/dev/null || true
+mount -t tmpfs -o size=16M tmpfs /var/log 2>/dev/null || true
+if ! grep -q "tmpfs /var/log" /etc/fstab 2>/dev/null; then
+  echo "tmpfs /var/log tmpfs defaults,noatime,nosuid,nodev,noexec,size=16M 0 0" >> /etc/fstab
+fi
+
+echo -e "${BLUE}[12/12] Cleaning unused packages...${NC}"
+apt-get autoremove --purge -y 2>/dev/null || true
+apt-get autoclean -y 2>/dev/null || true
+apt-get clean -y 2>/dev/null || true
+
 
 echo -e "${GREEN}============================================================${NC}"
 echo -e "${GREEN}     CHAMPION EDITION INSTALLATION COMPLETED SUCCESSFULLY ${NC}"
