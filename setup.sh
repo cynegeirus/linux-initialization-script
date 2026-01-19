@@ -36,11 +36,11 @@ echo -e "${GREEN}============================================================${N
 sleep 2
 
 # 1. SYSTEM UPDATE
-echo -e "${BLUE}[1/13] Updating system...${NC}"
+echo -e "${BLUE}[1/11] Updating system...${NC}"
 apt update && apt full-upgrade -y
 
 # 2. PACKAGES
-echo -e "${BLUE}[2/13] Installing base packages...${NC}"
+echo -e "${BLUE}[2/11] Installing base packages...${NC}"
 DEBIAN_FRONTEND=noninteractive TZ=$TIMEZONE apt-get install -y tzdata
 apt-get install -y vim nano wget net-tools locales bzip2 wmctrl software-properties-common \
     jq curl apt-transport-https ca-certificates ufw fail2ban ethtool cpufrequtils \
@@ -50,7 +50,7 @@ locale-gen $LOCALE
 systemctl enable --now docker
 
 # 3. DNS FIX
-echo -e "${BLUE}[3/13] Configuring Static DNS (Cloudflare)...${NC}"
+echo -e "${BLUE}[3/11] Configuring Static DNS (Cloudflare)...${NC}"
 systemctl stop systemd-resolved 2>/dev/null || true
 systemctl disable systemd-resolved 2>/dev/null || true
 apt-get purge -y systemd-resolved 2>/dev/null || true
@@ -63,18 +63,18 @@ echo -e "nameserver $DNS1\nnameserver $DNS2" > /etc/resolv.conf
 chattr +i /etc/resolv.conf
 
 # 4. SWAP DISABLE (CRITICAL FOR K8S)
-echo -e "${BLUE}[4/13] Disabling Swap completely...${NC}"
+echo -e "${BLUE}[4/11] Disabling Swap completely...${NC}"
 swapoff -a
 sed -i '/swap/d' /etc/fstab
 
 # 5. DOCKER COMPOSE
-echo -e "${BLUE}[5/13] Installing Docker Compose...${NC}"
+echo -e "${BLUE}[5/11] Installing Docker Compose...${NC}"
 VERSION=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest | jq -r .tag_name)
 curl -L "https://github.com/docker/compose/releases/download/${VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o $DOCKER_COMPOSE_DEST
 chmod +x $DOCKER_COMPOSE_DEST
 
 # 6. LIMITS
-echo -e "${BLUE}[6/13] Configuring system limits (NOFILE/NPROC)...${NC}"
+echo -e "${BLUE}[6/11] Configuring system limits (NOFILE/NPROC)...${NC}"
 cat > $ULIMIT_CONFIG <<EOF
 root soft nofile 100000000
 root hard nofile 100000000
@@ -86,7 +86,7 @@ echo -e "[Manager]\nDefaultLimitNOFILE=100000000\nDefaultLimitNPROC=infinity" > 
 systemctl daemon-reexec
 
 # 7. KERNEL TUNING (FIXED FOR K8S)
-echo -e "${BLUE}[7/13] Applying Kernel & Network Tuning...${NC}"
+echo -e "${BLUE}[7/11] Applying Kernel & Network Tuning...${NC}"
 cat > $SYSCTL_CUSTOM_FILE <<EOF
 # --- Kubernetes Networking Requirements ---
 net.ipv4.ip_forward = 1
@@ -125,7 +125,7 @@ EOF
 sysctl --system
 
 # 8. GRUB & CPU
-echo -e "${BLUE}[8/13] Configuring CPU Governor & Boot Params...${NC}"
+echo -e "${BLUE}[8/11] Configuring CPU Governor & Boot Params...${NC}"
 if [ -f /etc/default/grub ]; then
   cp /etc/default/grub /etc/default/grub.bak
   # Note: mitigations=off improves speed but lowers security. Accepted for Champion Node.
@@ -144,7 +144,7 @@ echo -e "[Service]\nExecStart=\nExecStart=/lib/systemd/systemd-networkd-wait-onl
 systemctl daemon-reload
 
 # 9. NIC TUNING
-echo -e "${BLUE}[9/13] NIC Tuning (Ring Buffer & Offloading)...${NC}"
+echo -e "${BLUE}[9/11] NIC Tuning (Ring Buffer & Offloading)...${NC}"
 systemctl disable --now irqbalance 2>/dev/null || true
 IFACE=$(ip -o -4 route show to default | awk '{print $5}' | head -n1)
 
@@ -167,7 +167,7 @@ if [ -n "$IFACE" ]; then
 fi
 
 # 10. FAIL2BAN
-echo -e "${BLUE}[10/13] Configuring Fail2Ban...${NC}"
+echo -e "${BLUE}[10/11] Configuring Fail2Ban...${NC}"
 cat > $JAIL_FILE <<EOF
 [sshd]
 enabled = true
@@ -182,32 +182,12 @@ EOF
 systemctl enable --now fail2ban
 
 # 11. BLOAT REMOVAL
-echo -e "${BLUE}[11/13] Removing Snapd & Unused Services...${NC}"
+echo -e "${BLUE}[11/11] Removing Snapd & Unused Services...${NC}"
 systemctl stop snapd 2>/dev/null || true
 apt-get purge -y snapd 2>/dev/null || true
 rm -rf /snap /var/cache/snapd
 systemctl disable --now avahi-daemon 2>/dev/null || true
 systemctl disable --now bluetooth 2>/dev/null || true
-
-# 12. LOG OPTIMIZATION (SAFE MODE)
-echo -e "${BLUE}[12/13] Optimizing Journald (Retention Policy)...${NC}"
-# DO NOT DISABLE LOGS COMPLETELY FOR K8S!
-# Instead, limit the size to prevent disk fill-up without breaking pods.
-if [ -f /etc/systemd/journald.conf ]; then
-  sed -i 's/^#*SystemMaxUse=.*/SystemMaxUse=500M/' /etc/systemd/journald.conf
-  sed -i 's/^#*SystemMaxFiles=.*/SystemMaxFiles=10/' /etc/systemd/journald.conf
-fi
-systemctl restart systemd-journald
-
-# Ensure /var/log is NOT on tmpfs (Fixing the crash issue)
-sed -i '/tmpfs \/var\/log/d' /etc/fstab
-if mount | grep -q "/var/log type tmpfs"; then
-  echo "Detected tmpfs on /var/log. Attempting to unmount..."
-  umount -l /var/log || true
-fi
-
-# 13. CLEANUP
-echo -e "${BLUE}[13/13] Final Cleanup...${NC}"
 apt-get autoremove --purge -y
 apt-get clean -y
 
